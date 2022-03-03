@@ -1,20 +1,36 @@
+import os
 import tweepy
 import scriptures
 import requests
 import time
 import ast
+import logging
+from dotenv import load_dotenv, find_dotenv
 
-# Initialization code
-auth = tweepy.OAuth1UserHandler("API_KEY", "API_SECRET_KEY")
+load_dotenv(find_dotenv())
 
-# TODO store credentials as environment variables
-auth.set_access_token("ACCESS_TOKEN", "SECRET_ACCESS_TOKEN")
-api = tweepy.API(auth)
 
-url = "http://getbible.net/json"
+def create_api():
+    API_KEY = os.environ.get("API_KEY")
+    API_SECRET_KEY = os.environ.get("API_SECRET_KEY")
+    auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET_KEY)
+
+    ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN")
+    SECRET_ACCESS_TOKEN = os.environ.get("SECRET_ACCESS_TOKEN")
+    auth.set_access_token(ACCESS_TOKEN, SECRET_ACCESS_TOKEN)
+    api = tweepy.API(auth)
+
+    BEARER_TOKEN = os.environ.get("BEARER_TOKEN")
+
+    # authentication using twitter API v2
+    client = tweepy.Client(BEARER_TOKEN)
+
+    return api
 
 
 def reply_to_tweet():
+    api = create_api()
+
     message_when_verse_found = "Hello @{0} thanks for the mention,  here is your bible text: {1}"
     message_when_verse_not_found = "Hello @{0} sorry we couldn't find a bible verse in the tweet."
 
@@ -26,33 +42,25 @@ def reply_to_tweet():
 
             try:
 
-                # fetching the status
-                original_tweet_id = mention.in_reply_to_status_id
-                original_tweet = api.get_status(id=original_tweet_id)
+                # fetching original tweet
+                original_tweet = api.get_status(mention.in_reply_to_status_id, tweet_mode='extended')
 
-                # fetching the text from the original tweet
-                text = original_tweet.text
-                print(f"text>>>>${text}")
-
-                bible_verses_and_text = process_bible_verse(text)
+                bible_verses_and_text = process_bible_verse(original_tweet.full_text)
 
                 # TODO logic needs to be updated
                 if bool(bible_verses_and_text):
-                    print(f"bible_verses_and_text>>>>{bible_verses_and_text}")
-                    print(f"bible_verses_and_text>>>>{bible_verses_and_text}")
 
                     for verse, text in bible_verses_and_text.items():
-                        print(f"original_tweet>>>>>{original_tweet.screen_name}")
-                        print(message_when_verse_found.format(mention.author.screen_name, text))
+                        tweet_reply = message_when_verse_found.format(mention.author.screen_name, text)
                         res = api.update_status(
-                            status=message_when_verse_found.format(mention.author.screen_name, text),
-                            in_reply_to_status_id=original_tweet_id)
-                        print(f"response from request {res}")
+                            status=text,
+                            in_reply_to_status_id=mention_id, auto_populate_reply_metadata=True)
+                        logging.info('response from request %s', res)
                 else:
-                    print(f"There was not bible verse in the tweet: ${bible_verses_and_text}")
+                    logging.warning('There was not bible verse in the tweet %s', original_tweet.full_text)
 
             except Exception as e:
-                print(f"An error occurred while trying to reply to tweet, error message: {e}")
+                logging.warning('An error occurred while trying to reply to tweet, error message: %s', e)
 
 
 def process_bible_verse(tweet):
@@ -90,19 +98,19 @@ def make_request_to_get_bible_text(verse):
     "chapter_nr":"3","chapter":{"23":{"verse_nr":"23","verse":"For all have sinned, and come short of the glory of
     God;\r\n"}}}],"direction":"LTR","type":"verse","version":"kjv"});
     """
+    url = "http://getbible.net/json"
 
     try:
-        PARAMS = {'passage': verse}
 
         # sending get request and saving the response as response object
-        r = requests.get(url=url, params=PARAMS)
+        r = requests.get(url=url, params= {'passage': verse})
 
         # extracting data in json format
         data = r.text
         return format_response(data)
 
     except Exception as e:
-        print(f"An error occurred when trying to get bible verse: {verse}, exception {e}")
+        logging.warning('An error occurred when trying to get bible verse: %s exception %s', verse, e)
 
 
 def format_response(data):
