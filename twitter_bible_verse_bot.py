@@ -53,7 +53,7 @@ def reply_to_tweet():
                     for verse, text in bible_verses_and_text.items():
                         tweet_reply = message_when_verse_found.format(mention.author.screen_name, text)
                         res = api.update_status(
-                            status=text,
+                            status=smart_truncate(text),
                             in_reply_to_status_id=mention_id, auto_populate_reply_metadata=True)
                         logging.info('response from request %s', res)
                 else:
@@ -103,7 +103,7 @@ def make_request_to_get_bible_text(verse):
     try:
 
         # sending get request and saving the response as response object
-        r = requests.get(url=url, params= {'passage': verse})
+        r = requests.get(url=url, params={'passage': verse})
 
         # extracting data in json format
         data = r.text
@@ -157,6 +157,13 @@ def romanToInt(roman_numeral):
             num += roman[roman_numeral[i]]
             i += 1
     return num
+
+
+def smart_truncate(content, length=277, suffix='...'):
+    if len(content) <= length:
+        return content
+    else:
+        return ' '.join(content[:length + 1].split(' ')[0:-1]).rstrip() + suffix
 
 
 while True:
