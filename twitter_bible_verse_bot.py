@@ -28,39 +28,39 @@ def create_api():
     return api
 
 
-def reply_to_tweet():
+def reply_to_tweet(since_id):
     api = create_api()
 
     message_when_verse_found = "Hello @{0} thanks for the mention,  here is your bible text: {1}"
     message_when_verse_not_found = "Hello @{0} sorry we couldn't find a bible verse in the tweet."
 
-    mentions = api.mentions_timeline()  # Finding mention tweets
+    new_since_id = since_id
+
+    mentions = tweepy.Cursor(api.mentions_timeline, since_id=since_id).items()  # Finding mention tweets
     for mention in mentions:
+        new_since_id = max(mention.id, since_id)
         mention_id = mention.id
 
         if mention.in_reply_to_status_id:
 
-            try:
+            # fetching original tweet
+            original_tweet = api.get_status(mention.in_reply_to_status_id, tweet_mode='extended')
 
-                # fetching original tweet
-                original_tweet = api.get_status(mention.in_reply_to_status_id, tweet_mode='extended')
+            bible_verses_and_text = process_bible_verse(original_tweet.full_text)
 
-                bible_verses_and_text = process_bible_verse(original_tweet.full_text)
+            # TODO logic needs to be updated
+            if bool(bible_verses_and_text):
 
-                # TODO logic needs to be updated
-                if bool(bible_verses_and_text):
+                for verse, text in bible_verses_and_text.items():
+                    tweet_reply = message_when_verse_found.format(mention.author.screen_name, text)
+                    res = api.update_status(
+                        status=smart_truncate(text),
+                        in_reply_to_status_id=mention_id, auto_populate_reply_metadata=True)
+                    logging.info('response from request %s', res)
+            else:
+                logging.warning('There was not bible verse in the tweet %s', original_tweet.full_text)
 
-                    for verse, text in bible_verses_and_text.items():
-                        tweet_reply = message_when_verse_found.format(mention.author.screen_name, text)
-                        res = api.update_status(
-                            status=smart_truncate(text),
-                            in_reply_to_status_id=mention_id, auto_populate_reply_metadata=True)
-                        logging.info('response from request %s', res)
-                else:
-                    logging.warning('There was not bible verse in the tweet %s', original_tweet.full_text)
-
-            except Exception as e:
-                logging.warning('An error occurred while trying to reply to tweet, error message: %s', e)
+    return new_since_id
 
 
 def process_bible_verse(tweet):
@@ -166,6 +166,16 @@ def smart_truncate(content, length=277, suffix='...'):
         return ' '.join(content[:length + 1].split(' ')[0:-1]).rstrip() + suffix
 
 
-while True:
-    reply_to_tweet()
-    time.sleep(15)
+def main():
+    since_id = 1
+    while True:
+        try:
+            since_id = reply_to_tweet(since_id)
+            time.sleep(15)
+
+        except Exception as e:
+            logging.warning('An error occurred when trying to reply tweet: exception %s', e)
+
+
+if __name__ == "__main__":
+    main()
