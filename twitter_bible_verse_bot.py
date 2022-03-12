@@ -166,16 +166,16 @@ def smart_truncate(content, length=277, suffix='...'):
         return ' '.join(content[:length + 1].split(' ')[0:-1]).rstrip() + suffix
 
 
-def main():
-    since_id = 1
-    while True:
-        try:
-            since_id = reply_to_tweet(since_id)
-            time.sleep(15)
+# def main():
+#     since_id = 1
+#     while True:
+#         try:
+#             since_id = reply_to_tweet(since_id)
+#             time.sleep(15)
 
-        except Exception as e:
-            logging.warning('An error occurred when trying to reply tweet: exception %s', e)
+#         except Exception as e:
+#             logging.warning('An error occurred when trying to reply tweet: exception %s', e)
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
